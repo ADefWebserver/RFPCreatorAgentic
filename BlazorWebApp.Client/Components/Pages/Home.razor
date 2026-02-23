@@ -1,0 +1,620 @@
+@page "/"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>RFP Responder</PageTitle>
+
+<div class="page-container">
+    @* Top Header *@
+    <div class="page-header">
+        <div class="header-left">
+            <h1 class="page-title">Home</h1>
+            <p class="welcome-text">Build your next proposal with AI-powered assistance.</p>
+        </div>
+        <div class="header-right">
+            <RadzenTextBox Placeholder="Search..." 
+                          class="search-box"
+                          Style="width: 280px;" />
+            <RadzenButton Icon="settings" 
+                         ButtonStyle="ButtonStyle.Light" 
+                         Variant="Variant.Text"
+                         Click="OpenConfigureAIDialog"
+                         class="header-icon-btn" />
+        </div>
+    </div>
+
+    @* Upload Knowledgebase Content Card *@
+    <RadzenCard class="upload-card">
+        <div class="upload-content">
+            <div class="upload-icon">
+                <RadzenIcon Icon="cloud_upload" Style="font-size: 3rem; color: #3b82f6;" />
+            </div>
+            <h2 class="upload-title">Upload Knowledgebase Content</h2>
+            <p class="upload-description">
+                Drag and drop your RFP documents, past proposals, or security questionnaires here to start training the AI. Supports PDF, DOCX, and TXT.
+            </p>
+            <InputFile OnChange="OnKnowledgebaseFileSelected" 
+                      accept=".pdf,.docx,.txt" 
+                      style="display: none;" 
+                      id="kbFileInput" />
+            <RadzenButton Text="Select Files"
+                         Icon="add"
+                         ButtonStyle="ButtonStyle.Primary"
+                         Size="ButtonSize.Medium"
+                         Click="@(() => TriggerFileInput("kbFileInput"))"
+                         Disabled="@(!aiConfigured || isProcessingKnowledgebase)" />
+            
+            @if (!aiConfigured)
+            {
+                <p class="config-warning">
+                    <RadzenIcon Icon="warning" Style="font-size: 1rem; color: #f59e0b; margin-right: 0.25rem;" />
+                    Please configure AI provider in Settings first.
+                </p>
+            }
+        </div>
+    </RadzenCard>
+
+    @* Upload RFP Document Card *@
+    <RadzenCard class="upload-card rfp-upload-card">
+        <div class="upload-content">
+            <div class="upload-icon rfp-icon">
+                <RadzenIcon Icon="description" Style="font-size: 3rem; color: #8b5cf6;" />
+            </div>
+            <h2 class="upload-title">Upload RFP Document</h2>
+            <p class="upload-description">
+                Upload your RFP document to automatically detect questions and generate AI-powered answers using your knowledgebase. Supports PDF and DOCX.
+            </p>
+            <InputFile OnChange="OnRfpFileSelected" 
+                      accept=".pdf,.docx" 
+                      style="display: none;" 
+                      id="rfpFileInput" />
+            <RadzenButton Text="Upload RFP"
+                         Icon="upload_file"
+                         ButtonStyle="ButtonStyle.Secondary"
+                         Size="ButtonSize.Medium"
+                         Click="@(() => TriggerFileInput("rfpFileInput"))"
+                         Disabled="@(!aiConfigured || !knowledgebaseEntries.Any() || isProcessingRfp)" />
+            
+            @if (!aiConfigured)
+            {
+                <p class="config-warning">
+                    <RadzenIcon Icon="warning" Style="font-size: 1rem; color: #f59e0b; margin-right: 0.25rem;" />
+                    Please configure AI provider in Settings first.
+                </p>
+            }
+            else if (!knowledgebaseEntries.Any())
+            {
+                <p class="config-warning">
+                    <RadzenIcon Icon="info" Style="font-size: 1rem; color: #3b82f6; margin-right: 0.25rem;" />
+                    Upload documents to the knowledgebase first.
+                </p>
+            }
+        </div>
+    </RadzenCard>
+
+</div>
+
+@* Processing Dialog Modal *@
+@if (isProcessingKnowledgebase || isProcessingRfp)
+{
+    <div class="modal-overlay">
+        <RadzenCard class="processing-modal">
+            <div class="processing-header">
+                <RadzenBadge Text="Active Processing" BadgeStyle="BadgeStyle.Info" />
+                <span class="processing-id">ID: @currentProcessingId</span>
+                <RadzenButton Icon="refresh" 
+                             ButtonStyle="ButtonStyle.Light" 
+                             Variant="Variant.Text"
+                             Size="ButtonSize.Small"
+                             class="refresh-btn" />
+            </div>
+            
+            <h2 class="processing-title">Analyzing @currentFileName</h2>
+            <p class="processing-subtitle">Please wait while we process your document. This usually takes 1-2 minutes</p>
+            
+            <div class="overall-progress">
+                <div class="progress-header">
+                    <span>Overall Progress</span>
+                    <span class="progress-percent">@currentProgress.PercentComplete.ToString("0")%</span>
+                </div>
+                <RadzenProgressBar Value="@currentProgress.PercentComplete" 
+                                  ShowValue="false"
+                                  Style="height: 8px;" />
+            </div>
+            
+            <div class="processing-steps">
+                @foreach (var step in processingSteps)
+                {
+                    <div class="step-item @(step.IsCompleted ? "completed" : step.IsActive ? "active" : "pending")">
+                        <div class="step-icon">
+                            @if (step.IsCompleted)
+                            {
+                                <RadzenIcon Icon="check_circle" Style="color: #22c55e;" />
+                            }
+                            else if (step.IsActive)
+                            {
+                                <div class="spinner"></div>
+                            }
+                            else
+                            {
+                                <RadzenIcon Icon="radio_button_unchecked" Style="color: #cbd5e1;" />
+                            }
+                        </div>
+                        <div class="step-info">
+                            <span class="step-name">@step.Name</span>
+                            <span class="step-description">@step.Description</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            
+            <div class="processing-footer">
+                <span class="minimize-hint">You can minimize this window to continue working in the background.</span>
+                <div class="processing-actions">
+                    <RadzenButton Text="Minimize" 
+                                 ButtonStyle="ButtonStyle.Light" 
+                                 Variant="Variant.Outlined"
+                                 Click="MinimizeProcessing" />
+                    <RadzenButton Text="Cancel" 
+                                 ButtonStyle="ButtonStyle.Danger" 
+                                 Click="CancelProcessing" />
+                </div>
+            </div>
+        </RadzenCard>
+    </div>
+}
+
+<style>
+    .page-container {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+    
+    .welcome-text {
+        color: #64748b;
+        margin: 0.25rem 0 0 0;
+        font-size: 0.875rem;
+    }
+    
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .search-box {
+        border-radius: 0.5rem;
+    }
+    
+    .header-icon-btn {
+        color: #64748b;
+    }
+    
+    /* Upload Card */
+    .upload-card {
+        background: white;
+        border: 2px dashed #e2e8f0;
+        border-radius: 1rem;
+        margin-bottom: 2rem;
+        transition: border-color 0.2s ease;
+    }
+    
+    .upload-card:hover {
+        border-color: #3b82f6;
+    }
+    
+    .rfp-upload-card:hover {
+        border-color: #8b5cf6;
+    }
+    
+    .rfp-icon {
+        background: #f5f3ff;
+    }
+    
+    .upload-content {
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+    
+    .upload-icon {
+        width: 80px;
+        height: 80px;
+        background: #eff6ff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+    }
+    
+    .upload-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0 0 0.75rem;
+    }
+    
+    .upload-description {
+        color: #64748b;
+        max-width: 500px;
+        margin: 0 auto 1.5rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    
+    .config-warning {
+        color: #f59e0b;
+        font-size: 0.8rem;
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Section Header */
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .section-title {
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    
+    .view-all-link {
+        color: #3b82f6;
+        font-size: 0.875rem;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .view-all-link:hover {
+        text-decoration: underline;
+    }
+    
+    /* Activity Grid */
+    .activity-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .activity-card {
+        padding: 1rem !important;
+        border-radius: 0.75rem;
+    }
+    
+    .activity-card-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .activity-icon.processed {
+        background: #dcfce7;
+        color: #22c55e;
+    }
+    
+    .activity-icon.analyzing {
+        background: #dbeafe;
+        color: #3b82f6;
+    }
+    
+    .activity-icon.draft {
+        background: #f3f4f6;
+        color: #64748b;
+    }
+    
+    .activity-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .activity-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .activity-name {
+        font-weight: 500;
+        color: #1e293b;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .activity-badge {
+        flex-shrink: 0;
+        font-size: 0.7rem !important;
+    }
+    
+    .activity-time {
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+    
+    .empty-card {
+        grid-column: span 3;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #94a3b8;
+    }
+    
+    .empty-state p {
+        margin: 0.5rem 0 0;
+        font-size: 0.875rem;
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+    
+    .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem !important;
+        border-radius: 0.75rem;
+        background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,1));
+    }
+    
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .stat-icon.blue {
+        background: linear-gradient(135deg, #dbeafe, #eff6ff);
+        color: #3b82f6;
+    }
+    
+    .stat-icon.green {
+        background: linear-gradient(135deg, #dcfce7, #f0fdf4);
+        color: #22c55e;
+    }
+    
+    .stat-icon.purple {
+        background: linear-gradient(135deg, #f3e8ff, #faf5ff);
+        color: #8b5cf6;
+    }
+    
+    .stat-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .stat-label {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e293b;
+    }
+    
+    /* Processing Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    
+    .processing-modal {
+        width: 500px;
+        max-width: 90vw;
+        border-radius: 1rem;
+        padding: 1.5rem !important;
+    }
+    
+    .processing-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .processing-id {
+        color: #94a3b8;
+        font-size: 0.75rem;
+    }
+    
+    .refresh-btn {
+        margin-left: auto;
+    }
+    
+    .processing-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0 0 0.25rem;
+    }
+    
+    .processing-subtitle {
+        color: #64748b;
+        font-size: 0.875rem;
+        margin: 0 0 1.5rem;
+    }
+    
+    .overall-progress {
+        margin-bottom: 1.5rem;
+    }
+    
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+    
+    .progress-percent {
+        color: #3b82f6;
+        font-weight: 600;
+    }
+    
+    .processing-steps {
+        margin-bottom: 1.5rem;
+    }
+    
+    .step-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .step-item:last-child {
+        border-bottom: none;
+    }
+    
+    .step-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .step-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .step-name {
+        font-weight: 500;
+        color: #1e293b;
+        font-size: 0.875rem;
+    }
+    
+    .step-item.pending .step-name {
+        color: #94a3b8;
+    }
+    
+    .step-item.active .step-name {
+        color: #f59e0b;
+    }
+    
+    .step-description {
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+    
+    .spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #fef3c7;
+        border-top-color: #f59e0b;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .processing-footer {
+        border-top: 1px solid #f1f5f9;
+        padding-top: 1rem;
+    }
+    
+    .minimize-hint {
+        display: block;
+        font-size: 0.75rem;
+        color: #94a3b8;
+        margin-bottom: 1rem;
+    }
+    
+    .processing-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .activity-grid,
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .empty-card {
+            grid-column: span 1;
+        }
+        
+        .page-header {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .header-right {
+            width: 100%;
+        }
+        
+        .search-box {
+            flex: 1;
+        }
+    }
+</style>

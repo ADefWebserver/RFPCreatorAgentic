@@ -1,0 +1,53 @@
+﻿@inherits LayoutComponentBase
+
+<RadzenLayout Style="min-height: 100vh; background: #f8fafc;">
+    <RadzenSidebar @bind-Expanded="@sidebarExpanded" Style="width: 250px; background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border: none;">
+        <RadzenStack Gap="0">
+            @* Logo Section *@
+            <div style="padding: 1.25rem; display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <RadzenIcon Icon="description" Style="font-size: 1.75rem; color: #3b82f6;" />
+                <div>
+                    <div style="font-weight: 600; color: white; font-size: 1rem;">RFP Responder</div>
+                    <div style="font-size: 0.7rem; color: #94a3b8;">Enterprise Edition</div>
+                </div>
+            </div>
+            
+            @* Navigation Items *@
+            <div style="padding: 1rem 0.75rem;">
+                <NavLink href="/" class="nav-item" ActiveClass="active" Match="NavLinkMatch.All">
+                    <RadzenIcon Icon="dashboard" Style="font-size: 1.25rem;" />
+                    <span>Dashboard</span>
+                </NavLink>
+                
+                <NavLink href="/knowledgebase" class="nav-item" ActiveClass="active">
+                    <RadzenIcon Icon="menu_book" Style="font-size: 1.25rem;" />
+                    <span>Knowledgebase</span>
+                </NavLink>
+                
+                <NavLink href="/settings" class="nav-item" ActiveClass="active">
+                    <RadzenIcon Icon="settings" Style="font-size: 1.25rem;" />
+                    <span>Settings</span>
+                </NavLink>
+            </div>
+            
+
+        </RadzenStack>
+    </RadzenSidebar>
+    
+    <RadzenBody Style="padding: 0;">
+        <div style="min-height: 100vh;">
+            @Body
+        </div>
+    </RadzenBody>
+</RadzenLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private bool sidebarExpanded = true;
+}
+}

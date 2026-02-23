@@ -1,0 +1,239 @@
+@inject IAIService AIService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<RadzenStack Gap="1.5rem" Style="padding: 1rem;">
+    <RadzenText TextStyle="TextStyle.H5">Configure OpenAI</RadzenText>
+    
+    <RadzenFormField Text="Display Name" Style="width: 100%;">
+        <RadzenTextBox @bind-Value="settings.DisplayName"
+                       Style="width: 100%;"
+                       Placeholder="My AI Configuration" />
+    </RadzenFormField>
+    
+    <RadzenFormField Text="API Key" Style="width: 100%;">
+        <RadzenPassword @bind-Value="settings.ApiKey"
+                        Style="width: 100%;"
+                        Placeholder="Enter your OpenAI API key"
+                        Change="OnApiKeyChanged" />
+    </RadzenFormField>
+    
+    @if (isLoadingModels)
+    {
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+            <RadzenText TextStyle="TextStyle.Body2">Loading available models...</RadzenText>
+        </RadzenStack>
+    }
+    else if (embeddingModels.Any() && completionModels.Any())
+    {
+        <RadzenFormField Text="Embedding Model" Style="width: 100%;">
+            <RadzenDropDown @bind-Value="settings.EmbeddingModel"
+                            Data="@embeddingModels"
+                            AllowFiltering="true"
+                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                            Style="width: 100%;" />
+        </RadzenFormField>
+        
+        <RadzenFormField Text="Completion Model" Style="width: 100%;">
+            <RadzenDropDown @bind-Value="settings.CompletionModel"
+                            Data="@completionModels"
+                            AllowFiltering="true"
+                            FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                            Style="width: 100%;" />
+        </RadzenFormField>
+    }
+    
+    @if (!string.IsNullOrEmpty(testMessage))
+    {
+        <RadzenAlert AlertStyle="@(testSuccess ? AlertStyle.Success : AlertStyle.Danger)" 
+                     ShowIcon="true" 
+                     Variant="Variant.Flat">
+            @testMessage
+        </RadzenAlert>
+    }
+    
+    <RadzenStack Orientation="Orientation.Horizontal" 
+                 Gap="10px" 
+                 JustifyContent="JustifyContent.End"
+                 Style="margin-top: 1rem;">
+        <RadzenButton Text="Test Connection" 
+                      Click="OnTestConnection" 
+                      ButtonStyle="ButtonStyle.Secondary"
+                      IsBusy="@isTesting" />
+        <RadzenButton Text="Cancel" 
+                      Click="OnCancel" 
+                      ButtonStyle="ButtonStyle.Light" />
+        <RadzenButton Text="Save" 
+                      Click="OnSave" 
+                      ButtonStyle="ButtonStyle.Primary"
+                      IsBusy="@isSaving" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public AIProviderSettings? ExistingSettings { get; set; }
+    
+    private AIProviderSettings settings = new() { ProviderType = "OpenAI" };
+    private bool isTesting = false;
+    private bool isSaving = false;
+    private bool isLoadingModels = false;
+    private string testMessage = string.Empty;
+    private bool testSuccess = false;
+    
+    private List<string> embeddingModels = new();
+    private List<string> completionModels = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (ExistingSettings != null)
+        {
+            settings = new AIProviderSettings
+            {
+                Id = ExistingSettings.Id,
+                ProviderType = "OpenAI",
+                DisplayName = ExistingSettings.DisplayName,
+                ApiKey = ExistingSettings.ApiKey,
+                EmbeddingModel = ExistingSettings.EmbeddingModel,
+                CompletionModel = ExistingSettings.CompletionModel,
+                IsActive = ExistingSettings.IsActive,
+                CreatedAt = ExistingSettings.CreatedAt
+            };
+            
+            // Load models if API key exists
+            if (!string.IsNullOrEmpty(settings.ApiKey))
+            {
+                await LoadAvailableModels();
+            }
+        }
+    }
+    
+    private async Task OnApiKeyChanged()
+    {
+        testMessage = string.Empty;
+        if (!string.IsNullOrEmpty(settings.ApiKey) && settings.ApiKey.Length > 10)
+        {
+            await LoadAvailableModels();
+        }
+    }
+    
+    private async Task LoadAvailableModels()
+    {
+        if (string.IsNullOrEmpty(settings.ApiKey))
+        {
+            return;
+        }
+        
+        isLoadingModels = true;
+        StateHasChanged();
+        
+        try
+        {
+            var (embedding, completion) = await AIService.GetAvailableModelsAsync(settings.ApiKey);
+            
+            embeddingModels = embedding;
+            completionModels = completion;
+            
+            // Set defaults if not already set
+            if (string.IsNullOrEmpty(settings.EmbeddingModel) && embeddingModels.Any())
+            {
+                settings.EmbeddingModel = embeddingModels.FirstOrDefault(m => m.Contains("text-embedding-3-small")) ?? embeddingModels.First();
+            }
+            if (string.IsNullOrEmpty(settings.CompletionModel) && completionModels.Any())
+            {
+                settings.CompletionModel = completionModels.FirstOrDefault(m => m.Contains("gpt-4o") && !m.Contains("mini")) ?? completionModels.First();
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Failed to load models: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingModels = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task OnTestConnection()
+    {
+        if (string.IsNullOrEmpty(settings.ApiKey))
+        {
+            testMessage = "Please enter an API key.";
+            testSuccess = false;
+            return;
+        }
+        
+        isTesting = true;
+        testMessage = string.Empty;
+        StateHasChanged();
+        
+        try
+        {
+            // Temporarily save settings to test connection
+            await AIService.SaveSettingsAsync(settings);
+            var result = await AIService.TestConnectionAsync();
+            
+            if (result)
+            {
+                testMessage = "Connection successful! AI service is configured correctly.";
+                testSuccess = true;
+            }
+            else
+            {
+                testMessage = "Connection failed. Please check your credentials.";
+                testSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            testMessage = $"Connection error: {ex.Message}";
+            testSuccess = false;
+        }
+        finally
+        {
+            isTesting = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task OnSave()
+    {
+        if (string.IsNullOrEmpty(settings.ApiKey))
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Please enter an API key.");
+            return;
+        }
+        
+        if (string.IsNullOrEmpty(settings.EmbeddingModel) || string.IsNullOrEmpty(settings.CompletionModel))
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", "Please select embedding and completion models.");
+            return;
+        }
+        
+        isSaving = true;
+        StateHasChanged();
+        
+        try
+        {
+            settings.IsActive = true;
+            await AIService.SaveSettingsAsync(settings);
+            NotificationService.Notify(NotificationSeverity.Success, "Success", "AI provider settings saved successfully.");
+            DialogService.Close(true);
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", $"Failed to save settings: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void OnCancel()
+    {
+        DialogService.Close(false);
+    }
+}

@@ -1,0 +1,260 @@
+@page "/knowledgebase"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>Knowledgebase - RFP Responder</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div class="header-left">
+            <h1 class="page-title">Knowledgebase</h1>
+            <p class="page-subtitle">Manage your document repository for AI-powered responses.</p>
+        </div>
+        <RadzenButton Text="Upload Document"
+                     Icon="upload_file"
+                     ButtonStyle="ButtonStyle.Primary"
+                     Click="TriggerUpload"
+                     Disabled="@(!aiConfigured)" />
+    </div>
+    
+    <InputFile OnChange="OnFileSelected" 
+              accept=".pdf,.docx,.txt" 
+              style="display: none;" 
+              id="kbUploadInput" />
+
+    @if (isProcessing)
+    {
+        <RadzenCard class="processing-card">
+            <RadzenProgressBar Value="@progress.PercentComplete" ShowValue="true" Style="height: 24px;" />
+            <p style="margin: 0.5rem 0 0; color: #64748b; font-size: 0.875rem;">@progress.Message</p>
+        </RadzenCard>
+    }
+
+    @if (entries.Any())
+    {
+        <div class="kb-grid">
+            @foreach (var entry in entries)
+            {
+                <RadzenCard class="kb-card">
+                    <div class="kb-card-header">
+                        <div class="kb-icon">
+                            <RadzenIcon Icon="picture_as_pdf" Style="font-size: 1.5rem; color: #ef4444;" />
+                        </div>
+                        <div class="kb-info">
+                            <span class="kb-name">@entry.FileName</span>
+                            <span class="kb-meta">@entry.Chunks.Count chunks • @FormatFileSize(entry.FileSizeBytes)</span>
+                        </div>
+                        <RadzenButton Icon="delete" 
+                                     ButtonStyle="ButtonStyle.Danger" 
+                                     Variant="Variant.Text"
+                                     Size="ButtonSize.Small"
+                                     Click="@(() => DeleteEntry(entry.Id))" />
+                    </div>
+                    <div class="kb-card-footer">
+                        <span class="kb-date">Added @entry.CreatedAt.ToString("MMM dd, yyyy")</span>
+                    </div>
+                </RadzenCard>
+            }
+        </div>
+    }
+    else
+    {
+        <RadzenCard class="empty-state-card">
+            <div class="empty-state">
+                <RadzenIcon Icon="menu_book" Style="font-size: 4rem; color: #cbd5e1; margin-bottom: 1rem;" />
+                <h2>No Documents Yet</h2>
+                <p>Upload PDF, DOCX, or TXT files to build your knowledgebase for AI-powered RFP responses.</p>
+            </div>
+        </RadzenCard>
+    }
+</div>
+
+<style>
+    .page-container {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+    
+    .page-subtitle {
+        color: #64748b;
+        margin: 0.25rem 0 0 0;
+        font-size: 0.875rem;
+    }
+    
+    .processing-card {
+        padding: 1.5rem !important;
+        margin-bottom: 1.5rem;
+    }
+    
+    .kb-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1rem;
+    }
+    
+    .kb-card {
+        padding: 1rem !important;
+    }
+    
+    .kb-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .kb-icon {
+        width: 48px;
+        height: 48px;
+        background: #fef2f2;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .kb-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .kb-name {
+        display: block;
+        font-weight: 500;
+        color: #1e293b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .kb-meta {
+        font-size: 0.8rem;
+        color: #94a3b8;
+    }
+    
+    .kb-card-footer {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #f1f5f9;
+    }
+    
+    .kb-date {
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+    
+    .empty-state-card {
+        padding: 4rem 2rem !important;
+    }
+    
+    .empty-state {
+        text-align: center;
+    }
+    
+    .empty-state h2 {
+        color: #1e293b;
+        margin: 0 0 0.5rem;
+    }
+    
+    .empty-state p {
+        color: #64748b;
+        margin: 0;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+</style>
+
+@code {
+    [Inject] private IKnowledgebaseService KnowledgebaseService { get; set; } = default!;
+    [Inject] private IAIService AIService { get; set; } = default!;
+    [Inject] private DialogService DialogService { get; set; } = default!;
+    [Inject] private NotificationService NotificationService { get; set; } = default!;
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+    
+    private List<KnowledgebaseEntry> entries = new();
+    private ProcessingProgress progress = new();
+    private bool aiConfigured = false;
+    private bool isProcessing = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await AIService.LoadSettingsAsync();
+        aiConfigured = settings != null && !string.IsNullOrEmpty(settings.ApiKey);
+        entries = await KnowledgebaseService.GetAllEntriesAsync();
+    }
+    
+    private async Task TriggerUpload()
+    {
+        await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('kbUploadInput').click()");
+    }
+    
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+        
+        isProcessing = true;
+        StateHasChanged();
+        
+        try
+        {
+            var progressHandler = new Progress<ProcessingProgress>(p =>
+            {
+                progress = p;
+                InvokeAsync(StateHasChanged);
+            });
+            
+            using var stream = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(stream);
+            stream.Position = 0;
+            
+            await KnowledgebaseService.ProcessDocumentAsync(stream, file.Name, progressHandler);
+            entries = await KnowledgebaseService.GetAllEntriesAsync();
+            
+            NotificationService.Notify(NotificationSeverity.Success, "Success", $"Added {file.Name} to knowledgebase.");
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task DeleteEntry(Guid entryId)
+    {
+        var confirm = await DialogService.Confirm("Delete this document?", "Confirm", new ConfirmOptions { OkButtonText = "Delete" });
+        if (confirm == true)
+        {
+            await KnowledgebaseService.DeleteEntryAsync(entryId);
+            entries = await KnowledgebaseService.GetAllEntriesAsync();
+            NotificationService.Notify(NotificationSeverity.Info, "Deleted", "Document removed.");
+        }
+    }
+    
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1) { order++; size /= 1024; }
+        return $"{size:0.##} {sizes[order]}";
+    }
+}

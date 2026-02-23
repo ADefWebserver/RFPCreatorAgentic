@@ -1,0 +1,434 @@
+@page "/export"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>Export Proposal - RFP Responder</PageTitle>
+
+<div class="page-container">
+    @* Breadcrumb *@
+    <div class="breadcrumb">
+        <a href="/">Home</a>
+        <span class="separator">/</span>
+        <span>@projectName</span>
+        <span class="separator">/</span>
+        <span class="current">Export</span>
+    </div>
+
+    @* Page Header *@
+    <div class="page-header">
+        <h1 class="page-title">Export Proposal</h1>
+        <p class="page-subtitle">
+            Finalize and download your RFP response document. We've compiled your answers, formatted the tables, and applied your branding.
+        </p>
+    </div>
+
+    @* Main Content Grid *@
+    <div class="export-grid">
+        @* Left Column - Download Card *@
+        <div class="download-section">
+            @* Success Banner *@
+            <div class="success-banner">
+                <div class="success-icon">
+                    <RadzenIcon Icon="check_circle" Style="font-size: 1.5rem; color: white;" />
+                </div>
+                <div class="success-content">
+                    <h3>Response Generated Successfully</h3>
+                    <p>Your document has been compiled and formatted. It is ready for download.</p>
+                </div>
+            </div>
+
+            @* File Card *@
+            <RadzenCard class="file-card">
+                <div class="file-info">
+                    <div class="file-icon">
+                        <RadzenIcon Icon="description" Style="font-size: 2rem; color: #3b82f6;" />
+                    </div>
+                    <div class="file-details">
+                        <span class="file-name">@fileName</span>
+                        <div class="file-meta">
+                            <span><RadzenIcon Icon="storage" Style="font-size: 0.875rem;" /> @fileSize</span>
+                            <span><RadzenIcon Icon="schedule" Style="font-size: 0.875rem;" /> Generated @generatedTime</span>
+                            <span class="verified"><RadzenIcon Icon="verified" Style="font-size: 0.875rem; color: #22c55e;" /> Verified Safe</span>
+                        </div>
+                    </div>
+                </div>
+            </RadzenCard>
+
+            @* Action Buttons *@
+            <div class="action-buttons">
+                <RadzenButton Text="Download .docx Response"
+                             Icon="download"
+                             ButtonStyle="ButtonStyle.Primary"
+                             Size="ButtonSize.Large"
+                             Click="DownloadDocument"
+                             Disabled="@isDownloading"
+                             IsBusy="@isDownloading" />
+                <RadzenButton Text="Preview"
+                             Icon="visibility"
+                             ButtonStyle="ButtonStyle.Light"
+                             Variant="Variant.Outlined"
+                             Click="PreviewDocument" />
+                <RadzenButton Icon="share"
+                             ButtonStyle="ButtonStyle.Light"
+                             Variant="Variant.Outlined"
+                             Click="ShareDocument" />
+            </div>
+
+            @* Info Note *@
+            <div class="info-note">
+                <RadzenIcon Icon="info" Style="color: #3b82f6; font-size: 1rem;" />
+                <span>This document is editable. We recommend reviewing the formatting before sending to the client.</span>
+            </div>
+        </div>
+
+        @* Right Column - Generation Log *@
+        <RadzenCard class="log-card">
+            <div class="log-header">
+                <h3>Generation Log</h3>
+                <RadzenBadge Text="COMPLETE" BadgeStyle="BadgeStyle.Success" />
+            </div>
+            
+            <div class="progress-section">
+                <span class="progress-label">Progress</span>
+                <span class="progress-value">100%</span>
+            </div>
+            <RadzenProgressBar Value="100" 
+                              ShowValue="false"
+                              Style="height: 6px; margin-bottom: 1.5rem;" 
+                              ProgressBarStyle="ProgressBarStyle.Success" />
+            
+            <div class="log-steps">
+                @foreach (var step in generationSteps)
+                {
+                    <div class="log-step">
+                        <div class="step-icon completed">
+                            <RadzenIcon Icon="check_circle" Style="color: #22c55e;" />
+                        </div>
+                        <div class="step-info">
+                            <span class="step-name">@step.Name</span>
+                            <span class="step-description">@step.Description</span>
+                        </div>
+                    </div>
+                }
+            </div>
+            
+            <a href="#" class="view-logs-link">
+                <RadzenIcon Icon="article" Style="font-size: 1rem;" />
+                View detailed logs
+            </a>
+        </RadzenCard>
+    </div>
+
+    @* Back Navigation *@
+    <div class="back-nav">
+        <a href="/" class="back-link">
+            <RadzenIcon Icon="arrow_back" Style="font-size: 1.25rem;" />
+            Back to Project Dashboard
+        </a>
+        <span class="file-ref">@fileName • @fileSize</span>
+    </div>
+</div>
+
+<style>
+    .page-container {
+        padding: 1.5rem 2rem;
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+    
+    .breadcrumb {
+        font-size: 0.875rem;
+        color: #64748b;
+        margin-bottom: 1rem;
+    }
+    
+    .breadcrumb a {
+        color: #64748b;
+        text-decoration: none;
+    }
+    
+    .breadcrumb a:hover {
+        color: #3b82f6;
+    }
+    
+    .breadcrumb .separator {
+        margin: 0 0.5rem;
+    }
+    
+    .breadcrumb .current {
+        color: #3b82f6;
+    }
+    
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0 0 0.5rem;
+    }
+    
+    .page-subtitle {
+        color: #64748b;
+        margin: 0;
+        font-size: 0.875rem;
+        max-width: 600px;
+    }
+    
+    /* Export Grid */
+    .export-grid {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    /* Success Banner */
+    .success-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%);
+        border: 1px solid #86efac;
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .success-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .success-content h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #166534;
+        margin: 0 0 0.25rem;
+    }
+    
+    .success-content p {
+        font-size: 0.875rem;
+        color: #15803d;
+        margin: 0;
+    }
+    
+    /* File Card */
+    .file-card {
+        padding: 1.25rem !important;
+        margin-bottom: 1.5rem;
+        background: #f8fafc !important;
+    }
+    
+    .file-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .file-icon {
+        width: 56px;
+        height: 56px;
+        background: white;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .file-details {
+        flex: 1;
+    }
+    
+    .file-name {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.9375rem;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    
+    .file-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    .file-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .file-meta .verified {
+        color: #22c55e;
+    }
+    
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .action-buttons .rz-button-lg {
+        flex: 1;
+    }
+    
+    /* Info Note */
+    .info-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: #64748b;
+        padding: 0.75rem;
+        background: #f0f9ff;
+        border-radius: 0.5rem;
+    }
+    
+    /* Log Card */
+    .log-card {
+        padding: 1.5rem !important;
+    }
+    
+    .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.25rem;
+    }
+    
+    .log-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0;
+    }
+    
+    .progress-section {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+    
+    .progress-label {
+        color: #64748b;
+    }
+    
+    .progress-value {
+        color: #22c55e;
+        font-weight: 600;
+    }
+    
+    .log-steps {
+        margin-bottom: 1rem;
+    }
+    
+    .log-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .log-step:last-child {
+        border-bottom: none;
+    }
+    
+    .step-icon {
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .step-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .step-name {
+        font-weight: 500;
+        color: #1e293b;
+        font-size: 0.875rem;
+    }
+    
+    .step-description {
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+    
+    .view-logs-link {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #64748b;
+        font-size: 0.875rem;
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    
+    .view-logs-link:hover {
+        color: #3b82f6;
+    }
+    
+    /* Back Navigation */
+    .back-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+    }
+    
+    .back-link {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #64748b;
+        text-decoration: none;
+        font-size: 0.875rem;
+        transition: color 0.2s;
+    }
+    
+    .back-link:hover {
+        color: #3b82f6;
+    }
+    
+    .file-ref {
+        font-size: 0.8rem;
+        color: #94a3b8;
+    }
+    
+    /* Responsive */
+    @@media (max-width: 900px) {
+        .export-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .action-buttons {
+            flex-wrap: wrap;
+        }
+        
+        .back-nav {
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: flex-start;
+        }
+    }
+</style>

@@ -1,0 +1,426 @@
+@page "/review"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>Review and Edit RFP Answers - RFP Responder</PageTitle>
+
+<div class="page-container">
+    @* Breadcrumb *@
+    <div class="breadcrumb">
+        <a href="/">Dashboard</a>
+        <span class="separator">/</span>
+        <span>@projectName</span>
+        <span class="separator">/</span>
+        <span class="current">Review</span>
+    </div>
+
+    @* Page Header *@
+    <div class="page-header">
+        <div class="header-left">
+            <h1 class="page-title">Review and Edit RFP Answers</h1>
+            <div class="header-badges">
+                <RadzenBadge Text="Analysis Complete" BadgeStyle="BadgeStyle.Success" />
+                <span class="question-count">@questions.Count Questions Detected</span>
+            </div>
+            <p class="page-subtitle">
+                Review the AI-generated answers below. Edit the text directly to refine the proposal before finalizing.
+            </p>
+        </div>
+        <div class="header-actions">
+            <RadzenButton Text="Export PDF" 
+                         Icon="picture_as_pdf" 
+                         ButtonStyle="ButtonStyle.Light" 
+                         Variant="Variant.Outlined" />
+            <RadzenButton Text="Share" 
+                         Icon="share" 
+                         ButtonStyle="ButtonStyle.Light" 
+                         Variant="Variant.Outlined" />
+        </div>
+    </div>
+
+    @* Questions and Answers List *@
+    <div class="qa-container">
+        <div class="qa-header-row">
+            <div class="qa-header-question">DETECTED QUESTION</div>
+            <div class="qa-header-answer">PROPOSED ANSWER</div>
+        </div>
+
+        @foreach (var question in questions)
+        {
+            <div class="qa-row @(question.ConfidenceScore < 0.5 ? "low-confidence" : "")">
+                <div class="qa-question">
+                    <div class="question-number">@question.Index</div>
+                    <div class="question-text">@question.QuestionText</div>
+                </div>
+                <div class="qa-answer">
+                    @if (question.ConfidenceScore < 0.5)
+                    {
+                        <div class="low-confidence-warning">
+                            <RadzenIcon Icon="warning" Style="color: #f59e0b;" />
+                            <span>AI could not generate a confident answer based on your knowledge base. Please draft your response here.</span>
+                        </div>
+                    }
+                    <div class="answer-content">
+                        <RadzenTextArea @bind-Value="question.EditedAnswer"
+                                       Placeholder="@(string.IsNullOrEmpty(question.GeneratedAnswer) ? "Enter your response here..." : question.GeneratedAnswer)"
+                                       Rows="5"
+                                       Style="width: 100%; border: none; background: transparent; resize: vertical;" />
+                        <div class="answer-actions">
+                            <RadzenButton Icon="auto_fix_high" 
+                                         ButtonStyle="ButtonStyle.Light" 
+                                         Variant="Variant.Text"
+                                         Size="ButtonSize.Small"
+                                         title="AI Enhance" />
+                        </div>
+                    </div>
+                    <div class="answer-footer">
+                        <span class="confidence-score">
+                            Confidence Score: 
+                            <strong class="@GetConfidenceClass(question.ConfidenceScore)">
+                                @(question.ConfidenceScore * 100):0%
+                            </strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (questions.Count > displayedCount)
+        {
+            <div class="show-more">
+                <RadzenButton Text="@($"Show {Math.Min(10, questions.Count - displayedCount)} more questions")"
+                             Icon="expand_more"
+                             ButtonStyle="ButtonStyle.Light"
+                             Variant="Variant.Text"
+                             Click="ShowMoreQuestions" />
+            </div>
+        }
+    </div>
+
+    @* Footer Actions *@
+    <div class="footer-container">
+        <div class="footer-left">
+            <div class="auto-save-status @(isSaving ? "saving" : "saved")">
+                @if (isSaving)
+                {
+                    <div class="save-spinner"></div>
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <RadzenIcon Icon="check_circle" Style="color: #22c55e;" />
+                    <span>All changes auto-saved @lastSaveTime</span>
+                }
+            </div>
+            
+            @if (lowConfidenceCount > 0)
+            {
+                <div class="warning-indicator">
+                    <RadzenIcon Icon="warning" Style="color: #f59e0b;" />
+                    <span>@lowConfidenceCount Low Confidence / Missing Data</span>
+                </div>
+            }
+        </div>
+        
+        <div class="footer-actions">
+            <RadzenButton Text="Save Draft" 
+                         ButtonStyle="ButtonStyle.Light" 
+                         Variant="Variant.Outlined"
+                         Click="SaveDraft" />
+            <RadzenButton Text="Create RFP Response" 
+                         Icon="arrow_forward"
+                         ButtonStyle="ButtonStyle.Primary"
+                         Click="CreateRfpResponse" />
+        </div>
+    </div>
+</div>
+
+<style>
+    .page-container {
+        padding: 1.5rem 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .breadcrumb {
+        font-size: 0.875rem;
+        color: #64748b;
+        margin-bottom: 1rem;
+    }
+    
+    .breadcrumb a {
+        color: #64748b;
+        text-decoration: none;
+    }
+    
+    .breadcrumb a:hover {
+        color: #3b82f6;
+    }
+    
+    .breadcrumb .separator {
+        margin: 0 0.5rem;
+    }
+    
+    .breadcrumb .current {
+        color: #3b82f6;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0 0 0.5rem;
+    }
+    
+    .header-badges {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .question-count {
+        font-size: 0.875rem;
+        color: #64748b;
+    }
+    
+    .page-subtitle {
+        color: #64748b;
+        margin: 0;
+        font-size: 0.875rem;
+    }
+    
+    .header-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    /* Q&A Container */
+    .qa-container {
+        background: white;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+    
+    .qa-header-row {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+        background: #f8fafc;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .qa-row {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .qa-row:last-child {
+        border-bottom: none;
+    }
+    
+    .qa-row.low-confidence {
+        background: #fffbeb;
+    }
+    
+    .qa-question {
+        padding: 1.25rem;
+        display: flex;
+        gap: 0.75rem;
+        border-right: 1px solid #f1f5f9;
+    }
+    
+    .question-number {
+        width: 24px;
+        height: 24px;
+        background: #3b82f6;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+    
+    .question-text {
+        font-size: 0.875rem;
+        color: #1e293b;
+        line-height: 1.5;
+    }
+    
+    .qa-answer {
+        padding: 1.25rem;
+    }
+    
+    .low-confidence-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        background: #fef3c7;
+        border: 1px solid #fcd34d;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.8rem;
+        color: #92400e;
+    }
+    
+    .answer-content {
+        position: relative;
+        background: #f8fafc;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .answer-actions {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+    
+    .answer-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+    }
+    
+    .confidence-score {
+        color: #64748b;
+    }
+    
+    .confidence-score strong.high {
+        color: #22c55e;
+    }
+    
+    .confidence-score strong.medium {
+        color: #f59e0b;
+    }
+    
+    .confidence-score strong.low {
+        color: #ef4444;
+    }
+    
+    .flag-link {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        color: #3b82f6;
+        text-decoration: none;
+        transition: opacity 0.2s;
+    }
+    
+    .flag-link:hover {
+        opacity: 0.8;
+    }
+    
+    .show-more {
+        padding: 1rem;
+        text-align: center;
+        border-top: 1px solid #f1f5f9;
+    }
+    
+    /* Footer */
+    .footer-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        border-radius: 0.75rem;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .footer-left {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+    
+    .auto-save-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+    
+    .auto-save-status.saved {
+        color: #22c55e;
+    }
+    
+    .auto-save-status.saving {
+        color: #64748b;
+    }
+    
+    .save-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    .warning-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: #f59e0b;
+    }
+    
+    .footer-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* Responsive */
+    @@media (max-width: 1024px) {
+        .qa-header-row,
+        .qa-row {
+            grid-template-columns: 1fr;
+        }
+        
+        .qa-question {
+            border-right: none;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .page-header {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .footer-container {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .footer-left {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+    }
+</style>

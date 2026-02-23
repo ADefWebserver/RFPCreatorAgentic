@@ -1,0 +1,207 @@
+@page "/settings"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>Settings - RFP Responder</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">Configure your AI provider and application preferences.</p>
+    </div>
+    
+    @* AI Provider Settings *@
+    <RadzenCard class="settings-card">
+        <div class="settings-header">
+            <div class="settings-icon blue">
+                <RadzenIcon Icon="smart_toy" />
+            </div>
+            <div class="settings-info">
+                <h3>AI Provider</h3>
+                <p>Configure your AI service connection for embeddings and completions.</p>
+            </div>
+            @if (aiConfigured)
+            {
+                <RadzenBadge Text="Connected" BadgeStyle="BadgeStyle.Success" />
+            }
+            else
+            {
+                <RadzenBadge Text="Not Configured" BadgeStyle="BadgeStyle.Warning" />
+            }
+        </div>
+        
+        @if (aiConfigured && settings != null)
+        {
+            <div class="settings-details">
+                <div class="detail-row">
+                    <span class="detail-label">Provider:</span>
+                    <span class="detail-value">@settings.ProviderType</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Embedding Model:</span>
+                    <span class="detail-value">@settings.EmbeddingModel</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Completion Model:</span>
+                    <span class="detail-value">@settings.CompletionModel</span>
+                </div>
+            </div>
+        }
+        
+        <div class="settings-actions">
+            <RadzenButton Text="@(aiConfigured ? "Update Configuration" : "Configure AI Provider")"
+                         Icon="settings"
+                         ButtonStyle="ButtonStyle.Primary"
+                         Click="OpenConfigureAIDialog" />
+        </div>
+    </RadzenCard>
+</div>
+
+<style>
+    .page-container {
+        padding: 2rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+    
+    .page-subtitle {
+        color: #64748b;
+        margin: 0.25rem 0 0 0;
+        font-size: 0.875rem;
+    }
+    
+    .settings-card {
+        padding: 1.5rem !important;
+        margin-bottom: 1rem;
+    }
+    
+    .settings-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .settings-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+    
+    .settings-icon.blue {
+        background: linear-gradient(135deg, #dbeafe, #eff6ff);
+        color: #3b82f6;
+    }
+    
+    .settings-info {
+        flex: 1;
+    }
+    
+    .settings-info h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1e293b;
+        margin: 0 0 0.25rem;
+    }
+    
+    .settings-info p {
+        font-size: 0.875rem;
+        color: #64748b;
+        margin: 0;
+    }
+    
+    .settings-details {
+        background: #f8fafc;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.375rem 0;
+        font-size: 0.875rem;
+    }
+    
+    .detail-row:not(:last-child) {
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .detail-label {
+        color: #64748b;
+    }
+    
+    .detail-value {
+        color: #1e293b;
+        font-weight: 500;
+    }
+    
+    .settings-actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .coming-soon-text {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        font-style: italic;
+    }
+</style>
+
+@code {
+    [Inject] private IAIService AIService { get; set; } = default!;
+    [Inject] private DialogService DialogService { get; set; } = default!;
+    [Inject] private NotificationService NotificationService { get; set; } = default!;
+    
+    private AIProviderSettings? settings;
+    private bool aiConfigured = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        settings = await AIService.LoadSettingsAsync();
+        aiConfigured = settings != null && !string.IsNullOrEmpty(settings.ApiKey);
+    }
+    
+    private async Task OpenConfigureAIDialog()
+    {
+        var existingSettings = await AIService.LoadSettingsAsync();
+        
+        var result = await DialogService.OpenAsync<Dialogs.ConfigureAIDialog>(
+            "Configure AI Provider",
+            new Dictionary<string, object?>
+            {
+                { "ExistingSettings", existingSettings! }
+            },
+            new DialogOptions
+            {
+                Width = "500px",
+                Height = "auto",
+                CloseDialogOnOverlayClick = false
+            });
+        
+        if (result == true)
+        {
+            settings = await AIService.LoadSettingsAsync();
+            aiConfigured = AIService.IsConfigured;
+            NotificationService.Notify(NotificationSeverity.Success, "Saved", "AI provider settings updated.");
+            StateHasChanged();
+        }
+    }
+}

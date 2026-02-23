@@ -1,0 +1,67 @@
+@page "/reports"
+@rendermode InteractiveWebAssembly
+
+<PageTitle>Reports - RFP Responder</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="page-title">Reports</h1>
+        <p class="page-subtitle">View analytics and insights from your RFP responses.</p>
+    </div>
+    
+    <RadzenCard class="coming-soon-card">
+        <div class="coming-soon-content">
+            <RadzenIcon Icon="bar_chart" Style="font-size: 4rem; color: #3b82f6; margin-bottom: 1rem;" />
+            <h2>Coming Soon</h2>
+            <p>Reporting and analytics features are under development. Check back soon!</p>
+            <RadzenButton Text="Back to Dashboard" 
+                         Icon="arrow_back" 
+                         ButtonStyle="ButtonStyle.Primary"
+                         Click="@(() => NavigationManager.NavigateTo("/"))" />
+        </div>
+    </RadzenCard>
+</div>
+
+<style>
+    .page-container {
+        padding: 2rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+    
+    .page-subtitle {
+        color: #64748b;
+        margin: 0.25rem 0 0 0;
+        font-size: 0.875rem;
+    }
+    
+    .coming-soon-card {
+        padding: 4rem 2rem !important;
+        text-align: center;
+    }
+    
+    .coming-soon-content h2 {
+        color: #1e293b;
+        margin: 0 0 0.5rem;
+    }
+    
+    .coming-soon-content p {
+        color: #64748b;
+        margin: 0 0 1.5rem;
+    }
+</style>
+
+@code {
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+}
