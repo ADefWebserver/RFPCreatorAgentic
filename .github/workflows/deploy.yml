@@ -1,0 +1,162 @@
+name: Build and Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+          dotnet-quality: 'preview'
+
+      - name: Restore dependencies
+        run: dotnet restore BlazorWebApp.sln
+
+      - name: Build solution
+        run: dotnet build BlazorWebApp.sln --no-restore --configuration Release
+
+      - name: Publish server project
+        run: dotnet publish BlazorWebApp/BlazorWebApp.csproj --no-restore --configuration Release --output ./publish
+
+      - name: Prepare GitHub Pages staging directory
+        run: |
+          mkdir -p ./gh-pages-staging/assets
+
+          # Copy screenshot images from docs/ (ignore errors if files are missing)
+          cp docs/HomePage.png                ./gh-pages-staging/assets/homepage.png   2>/dev/null || true
+          cp docs/Processing.png              ./gh-pages-staging/assets/processing.png 2>/dev/null || true
+          cp docs/ReviewAndEditRFPAnswers.png ./gh-pages-staging/assets/review.png     2>/dev/null || true
+          cp docs/ExportProposal.png          ./gh-pages-staging/assets/export.png     2>/dev/null || true
+
+      - name: Generate index.html
+        run: |
+          cat > ./gh-pages-staging/index.html << 'HTMLEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>RFP Creator Agentic</title>
+            <style>
+              *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+              body { font-family: system-ui, sans-serif; color: #1a1a2e; background: #f8f9fa; }
+              header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 3rem 2rem; text-align: center; }
+              header h1 { font-size: 2.5rem; margin-bottom: .5rem; }
+              header p  { font-size: 1.1rem; opacity: .85; max-width: 600px; margin: .75rem auto 0; }
+              .btn { display: inline-block; margin-top: 1.5rem; padding: .75rem 2rem; background: #0f3460; color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; }
+              .btn:hover { background: #e94560; }
+              section { max-width: 960px; margin: 3rem auto; padding: 0 1.5rem; }
+              h2 { font-size: 1.6rem; margin-bottom: 1rem; color: #0f3460; border-bottom: 2px solid #e94560; padding-bottom: .4rem; }
+              .screenshots { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin-top: 1rem; }
+              .screenshots figure { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+              .screenshots img { width: 100%; display: block; }
+              .screenshots figcaption { padding: .6rem 1rem; font-size: .875rem; color: #555; }
+              .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem; }
+              .feature { background: #fff; border-left: 4px solid #e94560; padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+              .feature h3 { font-size: 1rem; margin-bottom: .4rem; color: #0f3460; }
+              pre { background: #1a1a2e; color: #e2e8f0; padding: 1.25rem; border-radius: 8px; overflow-x: auto; font-size: .875rem; line-height: 1.6; }
+              footer { text-align: center; padding: 2rem; color: #666; font-size: .875rem; margin-top: 4rem; border-top: 1px solid #dee2e6; }
+              footer a { color: #0f3460; text-decoration: none; }
+            </style>
+          </head>
+          <body>
+            <header>
+              <h1>&#x1F916; RFP Creator Agentic</h1>
+              <p>An AI-powered RFP Responder that lets you upload PDFs, build a knowledge base, and generate professional proposal responses using Azure OpenAI.</p>
+              <a class="btn" href="https://github.com/ADefWebserver/RFPCreatorAgentic">View on GitHub</a>
+            </header>
+
+            <section>
+              <h2>Screenshots</h2>
+              <div class="screenshots">
+                <figure>
+                  <img src="assets/homepage.png" alt="Home Page" onerror="this.closest('figure').style.display='none'" />
+                  <figcaption>Home &#8212; Upload RFP and start processing</figcaption>
+                </figure>
+                <figure>
+                  <img src="assets/processing.png" alt="Processing" onerror="this.closest('figure').style.display='none'" />
+                  <figcaption>Processing &#8212; AI extracts and answers RFP questions</figcaption>
+                </figure>
+                <figure>
+                  <img src="assets/review.png" alt="Review Answers" onerror="this.closest('figure').style.display='none'" />
+                  <figcaption>Review &#8212; Edit and refine AI-generated answers</figcaption>
+                </figure>
+                <figure>
+                  <img src="assets/export.png" alt="Export Proposal" onerror="this.closest('figure').style.display='none'" />
+                  <figcaption>Export &#8212; Download the completed Word document</figcaption>
+                </figure>
+              </div>
+            </section>
+
+            <section>
+              <h2>Key Features</h2>
+              <div class="features">
+                <div class="feature"><h3>&#x1F4C4; PDF Knowledgebase</h3><p>Upload PDFs to build a searchable knowledge base used to answer RFP questions.</p></div>
+                <div class="feature"><h3>&#x1F9E0; RAG Pipeline</h3><p>Retrieval-Augmented Generation finds the most relevant context before generating answers.</p></div>
+                <div class="feature"><h3>&#x270F;&#xFE0F; Editable Answers</h3><p>Review and edit every AI-generated answer before exporting the final document.</p></div>
+                <div class="feature"><h3>&#x1F4DD; Word Export</h3><p>Generate a professional .docx proposal document with a single click.</p></div>
+                <div class="feature"><h3>&#x1F511; BYO API Keys</h3><p>Connect your own Azure OpenAI or compatible endpoint. Nothing stored server-side.</p></div>
+                <div class="feature"><h3>&#x1F310; Blazor WebAssembly</h3><p>Core AI processing runs in the browser; no data leaves your machine unless you configure an endpoint.</p></div>
+              </div>
+            </section>
+
+            <section>
+              <h2>Quick Start</h2>
+              <pre><code># Prerequisites: .NET 10 SDK + Azure OpenAI resource
+
+          git clone https://github.com/ADefWebserver/RFPCreatorAgentic.git
+          cd RFPCreatorAgentic
+          dotnet run --project BlazorWebApp/BlazorWebApp.csproj</code></pre>
+              <p style="margin-top:1rem">Then open <strong>Settings</strong> in the app and enter your Azure OpenAI endpoint and API key.</p>
+            </section>
+
+            <section>
+              <h2>Documentation</h2>
+              <ul style="line-height:2">
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/RFP-Responder-Implementation-Plan.md">Implementation Plan</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/Phase1-Foundation.md">Phase 1 &#8212; Foundation</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/Phase2-AI-Integration.md">Phase 2 &#8212; AI Integration</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/Phase3-Knowledgebase.md">Phase 3 &#8212; Knowledgebase</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/Phase4-RFP-Processing.md">Phase 4 &#8212; RFP Processing</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/Phase5-Document-Generation.md">Phase 5 &#8212; Document Generation</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/Phase6-Polish.md">Phase 6 &#8212; Polish</a></li>
+                <li><a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/docs/GitHub-Pages-Deployment-Plan.md">GitHub Pages Deployment Plan</a></li>
+              </ul>
+            </section>
+
+            <footer>
+              <p>
+                Licensed under <a href="https://github.com/ADefWebserver/RFPCreatorAgentic/blob/main/LICENSE.txt">the project license</a> &#183;
+                Read the <a href="https://blazorhelpwebsite.com/ViewBlogPost/20084">blog post</a> &#183;
+                <a href="https://github.com/ADefWebserver/RFPCreatorAgentic">GitHub repository</a>
+              </p>
+            </footer>
+          </body>
+          </html>
+          HTMLEOF
+
+      - name: Add .nojekyll
+        run: touch ./gh-pages-staging/.nojekyll
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: gh-pages-staging
